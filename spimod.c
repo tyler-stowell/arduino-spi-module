@@ -94,12 +94,14 @@ static int arduino_spi_read(struct file *filp, char __user *buf, size_t maxBytes
 }
 
 static int arduino_spi_write(struct file *filp, const char __user *buf, size_t maxBytes, loff_t *f_pos){
+	printk(KERN_ERR "made it this far");
 	struct arduino_dev *dev = filp->private_data;
 	if (maxBytes > BUF_SIZE)
 		return -EMSGSIZE;
 
 	spin_lock_irq(&dev->spinlock);
 	if(!copy_from_user(dev->tx_buf, buf, maxBytes)){
+		printk(KERN_ERR "I can't see kern info");
 		arduino_spi_message(dev, maxBytes);
 	}else{
 		spin_unlock_irq(&dev->spinlock);
