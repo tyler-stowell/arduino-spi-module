@@ -7,10 +7,11 @@
 #include <linux/types.h>
 #include <linux/cdev.h>
 #include <linux/uaccess.h>
+#include <linux/of.h>
 
 #include "spimod.h"
 
-#define DEV_NAME "Arduino Mini Spi Dev"
+#define DEV_NAME "ArduinoSpidev"
 
 MODULE_LICENSE("Dual BSD/GPL");
 
@@ -20,13 +21,19 @@ static struct cdev *arduino_spi_cdev;
 static struct class *arduino_spi_class;
 static struct device *arduino_spi_dev;
 
+static const struct of_device_id arduino_dt_ids[] = {
+	{ .compatible = "arduinomini" },
+	{},
+};
+MODULE_DEVICE_TABLE(of, arduino_dt_ids);
+
 static int arduino_spi_open(struct inode *inode, struct file *filp){
 	struct arduino_dev *dev = arduino_spi;
 
 	spin_lock_irq(&dev->spinlock);
 
 	if(dev->opened){
-		printk(KERN_INFO "Cannot open device file twice");
+		printk(KERN_INFO "Cannot open device file twice\n");
 		spin_unlock_irq(&dev->spinlock);
 		return -EIO;
 	}
@@ -54,6 +61,7 @@ static int arduino_spi_release(struct inode *inode, struct file *filp){
 }
 
 static int arduino_spi_message(struct arduino_dev *dev, unsigned int len){
+	printk(KERN_ERR "Sending message...\n");
 	struct spi_message msg = { };
 	struct spi_transfer transfer = { };
 
@@ -66,6 +74,8 @@ static int arduino_spi_message(struct arduino_dev *dev, unsigned int len){
 
 	spi_message_add_tail(&transfer, &msg);
 	int status = spi_sync(dev->spi, &msg);
+
+	printk(KERN_ERR "Message sent.\n");
 
 	if(status == 0){
 		status = msg.actual_length;
@@ -94,18 +104,18 @@ static int arduino_spi_read(struct file *filp, char __user *buf, size_t maxBytes
 }
 
 static int arduino_spi_write(struct file *filp, const char __user *buf, size_t maxBytes, loff_t *f_pos){
-	printk(KERN_ERR "made it this far");
+	printk(KERN_ERR "made it this far\n");
 	struct arduino_dev *dev = filp->private_data;
 	if (maxBytes > BUF_SIZE)
 		return -EMSGSIZE;
 
 	spin_lock_irq(&dev->spinlock);
 	if(!copy_from_user(dev->tx_buf, buf, maxBytes)){
-		printk(KERN_ERR "I can't see kern info");
+		printk(KERN_ERR "I can't see kern info\n");
 		arduino_spi_message(dev, maxBytes);
 	}else{
 		spin_unlock_irq(&dev->spinlock);
-		printk(KERN_INFO "Error copying from user space address");
+		printk(KERN_INFO "Error copying from user space address\n");
 		return -EFAULT;
 	}
 	spin_unlock_irq(&dev->spinlock);
@@ -113,11 +123,12 @@ static int arduino_spi_write(struct file *filp, const char __user *buf, size_t m
 }
 
 static int arduino_probe(struct spi_device *spi){
+	struct device_node *arduinoNode = spi->dev.of_node;
 	if(!arduino_spi){
 		arduino_spi = kzalloc(sizeof *arduino_spi, GFP_KERNEL);
 	}
 	if (!arduino_spi){
-		printk(KERN_INFO "Failed to allocate memory for spi device");
+		printk(KERN_INFO "Failed to allocate memory for spi device\n");
 		return -ENOMEM;
 	}
 
@@ -156,19 +167,19 @@ static const struct file_operations arduino_fops = {
 };
 
 static int __init arduino_spi_init(void){
-	printk(KERN_INFO "Loading module...");
+	printk(KERN_INFO "Loading module...\n");
 
 	arduino_spi = kzalloc(sizeof(*arduino_spi), GFP_KERNEL);
 	spin_lock_init(&arduino_spi->spinlock);
 
 	if(alloc_chrdev_region(&arduino_spi_num, 0, 1, DEV_NAME) < 0){
-		printk(KERN_INFO "Error while allocating device number");
+		printk(KERN_INFO "Error while allocating device number\n");
 		kfree(arduino_spi);
 		return -ENOMEM;
 	}
 
 	if(!(arduino_spi_cdev = cdev_alloc())){
-		printk(KERN_INFO "Error allocating memory for cdev struct");
+		printk(KERN_INFO "Error allocating memory for cdev struct\n");
 		kfree(arduino_spi);
 		unregister_chrdev_region(arduino_spi_num, 1);
 		return -ENOMEM;
@@ -178,14 +189,14 @@ static int __init arduino_spi_init(void){
 	arduino_spi_cdev->ops = &arduino_fops;
 
 	if(cdev_add(arduino_spi_cdev, arduino_spi_num, 1)){
-		printk(KERN_INFO "Failed to add cdev object");
+		printk(KERN_INFO "Failed to add cdev object\n");
 		kfree(arduino_spi);
 		unregister_chrdev_region(arduino_spi_num, 1);
 		return -ENOMEM;
 	}
 
 	if(!(arduino_spi_class = class_create(THIS_MODULE, DEV_NAME))){
-		printk(KERN_INFO "Error while creating device class");
+		printk(KERN_INFO "Error while creating device class\n");
 		kfree(arduino_spi);
 		unregister_chrdev_region(arduino_spi_num, 1);
 		cdev_del(arduino_spi_cdev);
@@ -196,7 +207,7 @@ static int __init arduino_spi_init(void){
 
 	int registered = spi_register_driver(&arduino_driver);
 	if(registered){
-		printk(KERN_INFO "Error while registering driver");
+		printk(KERN_INFO "Error while registering driver\n");
 		kfree(arduino_spi);
 		unregister_chrdev_region(arduino_spi_num, 1);
 		cdev_del(arduino_spi_cdev);
