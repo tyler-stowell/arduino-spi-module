@@ -62,18 +62,21 @@ static int arduino_spi_release(struct inode *inode, struct file *filp){
 
 static int arduino_spi_message(struct arduino_dev *dev, unsigned int len){
 	printk(KERN_ERR "Sending message...\n");
+
+	struct spi_transfer transfer = {
+		.rx_buf = dev->rx_buf,
+		.tx_buf = dev->tx_buf,
+		.len = len,
+		.speed_hz = dev->max_speed_hz,
+	};
+
+	printk(KERN_ERR "Preparing message.\n");
+
 	struct spi_message msg = { };
-	struct spi_transfer transfer = { };
-
 	spi_message_init(&msg);
-
-	transfer.tx_buf = dev->tx_buf;
-	transfer.rx_buf = dev->rx_buf;
-	transfer.len = len;
-	transfer.speed_hz = dev->max_speed_hz;
-
 	spi_message_add_tail(&transfer, &msg);
-	int status = spi_sync(dev->spi, &msg);
+	/*
+	int status = spi_async(dev->spi, &msg);
 
 	printk(KERN_ERR "Message sent.\n");
 
@@ -81,6 +84,8 @@ static int arduino_spi_message(struct arduino_dev *dev, unsigned int len){
 		status = msg.actual_length;
 	}
 	return status;
+	*/
+	return 0;
 }
 
 static int arduino_spi_read(struct file *filp, char __user *buf, size_t maxBytes, loff_t *f_pos){
@@ -118,6 +123,7 @@ static int arduino_spi_write(struct file *filp, const char __user *buf, size_t m
 		printk(KERN_INFO "Error copying from user space address\n");
 		return -EFAULT;
 	}
+	printk(KERN_ERR "Sent message\n");
 	spin_unlock_irq(&dev->spinlock);
 	return maxBytes;
 }
