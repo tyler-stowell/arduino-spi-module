@@ -75,8 +75,7 @@ static int arduino_spi_message(struct arduino_dev *dev, unsigned int len){
 	struct spi_message msg = { };
 	spi_message_init(&msg);
 	spi_message_add_tail(&transfer, &msg);
-	/*
-	int status = spi_async(dev->spi, &msg);
+	int status = spi_sync(dev->spi, &msg);
 
 	printk(KERN_ERR "Message sent.\n");
 
@@ -84,8 +83,6 @@ static int arduino_spi_message(struct arduino_dev *dev, unsigned int len){
 		status = msg.actual_length;
 	}
 	return status;
-	*/
-	return 0;
 }
 
 static int arduino_spi_read(struct file *filp, char __user *buf, size_t maxBytes, loff_t *f_pos){
@@ -159,6 +156,7 @@ static struct spi_driver arduino_driver = {
 	.driver = {
 		.name = "spitest",
 		.owner = THIS_MODULE,
+		.of_match_table = of_match_ptr(arduino_dt_ids),
 	},
 	.probe = arduino_probe,
 	.remove = arduino_remove,
