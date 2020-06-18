@@ -135,6 +135,7 @@ static int arduino_probe(struct spi_device *spi){
 		return -ENOMEM;
 	}
 
+	spi->mode = SPI_MODE_1;
 	arduino_spi->spi = spi;
 	arduino_spi->opened = false;
 	arduino_spi->max_speed_hz = 1000000;
