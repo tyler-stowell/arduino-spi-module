@@ -71,14 +71,16 @@ static int arduino_spi_message(struct arduino_dev *dev, unsigned int len){
 	struct spi_message msg = { };
 	int status;
 
-	printk(KERN_ERR "Sending message...\n");
-
-
-	printk(KERN_ERR "Preparing message.\n");
-
 	spi_message_init(&msg);
 	spi_message_add_tail(&transfer, &msg);
+
+	printk(KERN_INFO "Pre-transfer contents of tx buf %s\n", dev->tx_buf);
+	printk(KERN_INFO "Pre-transfer contents of rx buf %s\n", dev->rx_buf);
+
 	status = spi_sync(dev->spi, &msg);
+
+	printk(KERN_INFO "Post-transfer contents of tx buf %s\n", dev->tx_buf);
+	printk(KERN_INFO "Post-transfer contents of rx buf %s\n", dev->rx_buf);
 
 	if(status == 0){
 		status = msg.actual_length;
@@ -120,13 +122,11 @@ static int arduino_spi_write(struct file *filp, const char __user *buf, size_t m
 	spin_lock_irq(&dev->spinlock);
 	if(!copy_from_user(dev->tx_buf, buf, maxBytes)){
 		arduino_spi_message(dev, maxBytes);
-		printk(KERN_INFO "contents of receiving buffer: %s\n", dev->rx_buf);
 	}else{
 		spin_unlock_irq(&dev->spinlock);
 		printk(KERN_INFO "Error copying from user space address\n");
 		return -EFAULT;
 	}
-	printk(KERN_ERR "Sent message\n");
 	spin_unlock_irq(&dev->spinlock);
 	return maxBytes;
 }
@@ -140,7 +140,7 @@ static int arduino_probe(struct spi_device *spi){
 		return -ENOMEM;
 	}
 
-	spi->mode = SPI_MODE_1;
+	spi->mode = SPI_MODE_0;
 	arduino_spi->spi = spi;
 	arduino_spi->opened = false;
 	arduino_spi->max_speed_hz = 1000000;
@@ -227,6 +227,9 @@ static int __init arduino_spi_init(void){
 		class_destroy(arduino_spi_class);
 		return -ENOMEM;
 	}
+
+	printk(KERN_INFO "Sucessfully loaded module");
+
 	return 0;
 }
 
@@ -238,6 +241,7 @@ static void __exit arduino_spi_exit(void){
 	cdev_del(arduino_spi_cdev);
 	unregister_chrdev_region(arduino_spi_num, 1);
 	kfree(arduino_spi);
+	printk(KERN_INFO "Sucessfully unloaded module");
 }
 
 module_init(arduino_spi_init);
