@@ -61,8 +61,6 @@ static int arduino_spi_release(struct inode *inode, struct file *filp){
 }
 
 static int arduino_spi_message(struct arduino_dev *dev, unsigned int len){
-	printk(KERN_ERR "Sending message...\n");
-
 	struct spi_transfer transfer = {
 		.rx_buf = dev->rx_buf,
 		.tx_buf = dev->tx_buf,
@@ -70,14 +68,17 @@ static int arduino_spi_message(struct arduino_dev *dev, unsigned int len){
 		.speed_hz = dev->max_speed_hz,
 	};
 
+	struct spi_message msg = { };
+	int status;
+
+	printk(KERN_ERR "Sending message...\n");
+
+
 	printk(KERN_ERR "Preparing message.\n");
 
-	struct spi_message msg = { };
 	spi_message_init(&msg);
 	spi_message_add_tail(&transfer, &msg);
-	int status = spi_sync(dev->spi, &msg);
-
-	printk(KERN_ERR "Message sent.\n");
+	status = spi_sync(dev->spi, &msg);
 
 	if(status == 0){
 		status = msg.actual_length;
@@ -90,8 +91,13 @@ static int arduino_spi_read(struct file *filp, char __user *buf, size_t maxBytes
 	if (maxBytes > BUF_SIZE)
 		return -EMSGSIZE;
 
-	struct spi_device *spi = dev->spi;
+	arduino_spi_message(dev, maxBytes);
 
+	copy_to_user(buf, dev->rx_buf, maxBytes);
+
+	return maxBytes;
+
+	/*
 	struct spi_transfer t = {
 		.rx_buf = buf,
 		.len = maxBytes,
@@ -103,18 +109,18 @@ static int arduino_spi_read(struct file *filp, char __user *buf, size_t maxBytes
 	spi_message_init(&m);
 	spi_message_add_tail(&t, &m);
 	return spi_sync(spi, &m);
+	*/
 }
 
 static int arduino_spi_write(struct file *filp, const char __user *buf, size_t maxBytes, loff_t *f_pos){
-	printk(KERN_ERR "made it this far\n");
 	struct arduino_dev *dev = filp->private_data;
 	if (maxBytes > BUF_SIZE)
 		return -EMSGSIZE;
 
 	spin_lock_irq(&dev->spinlock);
 	if(!copy_from_user(dev->tx_buf, buf, maxBytes)){
-		printk(KERN_ERR "I can't see kern info\n");
 		arduino_spi_message(dev, maxBytes);
+		printk(KERN_INFO "contents of receiving buffer: %s\n", dev->rx_buf);
 	}else{
 		spin_unlock_irq(&dev->spinlock);
 		printk(KERN_INFO "Error copying from user space address\n");
@@ -126,7 +132,6 @@ static int arduino_spi_write(struct file *filp, const char __user *buf, size_t m
 }
 
 static int arduino_probe(struct spi_device *spi){
-	struct device_node *arduinoNode = spi->dev.of_node;
 	if(!arduino_spi){
 		arduino_spi = kzalloc(sizeof *arduino_spi, GFP_KERNEL);
 	}
@@ -172,6 +177,8 @@ static const struct file_operations arduino_fops = {
 };
 
 static int __init arduino_spi_init(void){
+	int registered;
+
 	printk(KERN_INFO "Loading module...\n");
 
 	arduino_spi = kzalloc(sizeof(*arduino_spi), GFP_KERNEL);
@@ -210,7 +217,7 @@ static int __init arduino_spi_init(void){
 
 	arduino_spi_dev = device_create(arduino_spi_class, NULL, arduino_spi_num, NULL, "%s", DEV_NAME);
 
-	int registered = spi_register_driver(&arduino_driver);
+	registered = spi_register_driver(&arduino_driver);
 	if(registered){
 		printk(KERN_INFO "Error while registering driver\n");
 		kfree(arduino_spi);
@@ -225,6 +232,7 @@ static int __init arduino_spi_init(void){
 
 static void __exit arduino_spi_exit(void){
 	printk(KERN_INFO "Unloading module...");
+	spi_unregister_driver(&arduino_driver);
 	device_destroy(arduino_spi_class, arduino_spi_num);
 	class_destroy(arduino_spi_class);
 	cdev_del(arduino_spi_cdev);
