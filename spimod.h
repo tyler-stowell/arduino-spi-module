@@ -1,9 +1,5 @@
 #define BUF_SIZE 512
-
-/* IOCTL STUFF */
-#define IOC_MAGIC 'Q'
-#define IOCTL_SEND_MESSEGE _IO(IOC_MAGIC, 0)
-
+#define DEV_NAME "ArduinoSpidev"
 
 struct arduino_dev {
 	struct spi_device *spi;

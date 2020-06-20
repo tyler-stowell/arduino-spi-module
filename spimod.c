@@ -11,8 +11,6 @@
 
 #include "spimod.h"
 
-#define DEV_NAME "ArduinoSpidev"
-
 MODULE_LICENSE("Dual BSD/GPL");
 
 struct arduino_dev *arduino_spi = NULL;
@@ -74,13 +72,7 @@ static int arduino_spi_message(struct arduino_dev *dev, unsigned int len){
 	spi_message_init(&msg);
 	spi_message_add_tail(&transfer, &msg);
 
-	printk(KERN_INFO "Pre-transfer contents of tx buf %s\n", dev->tx_buf);
-	printk(KERN_INFO "Pre-transfer contents of rx buf %s\n", dev->rx_buf);
-
 	status = spi_sync(dev->spi, &msg);
-
-	printk(KERN_INFO "Post-transfer contents of tx buf %s\n", dev->tx_buf);
-	printk(KERN_INFO "Post-transfer contents of rx buf %s\n", dev->rx_buf);
 
 	if(status == 0){
 		status = msg.actual_length;
@@ -98,20 +90,6 @@ static int arduino_spi_read(struct file *filp, char __user *buf, size_t maxBytes
 	copy_to_user(buf, dev->rx_buf, maxBytes);
 
 	return maxBytes;
-
-	/*
-	struct spi_transfer t = {
-		.rx_buf = buf,
-		.len = maxBytes,
-		.speed_hz = dev->max_speed_hz,
-	};
-
-	struct spi_message m;
-
-	spi_message_init(&m);
-	spi_message_add_tail(&t, &m);
-	return spi_sync(spi, &m);
-	*/
 }
 
 static int arduino_spi_write(struct file *filp, const char __user *buf, size_t maxBytes, loff_t *f_pos){
