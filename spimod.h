@@ -1,4 +1,4 @@
-#define BUF_SIZE 512
+#define BUF_SIZE 1024
 #define DEV_NAME "ArduinoSpidev"
 
 struct arduino_dev {

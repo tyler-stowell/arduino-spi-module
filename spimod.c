@@ -82,14 +82,22 @@ static int arduino_spi_message(struct arduino_dev *dev, unsigned int len){
 
 static int arduino_spi_read(struct file *filp, char __user *buf, size_t maxBytes, loff_t *f_pos){
 	struct arduino_dev *dev = filp->private_data;
-	if (maxBytes > BUF_SIZE)
-		return -EMSGSIZE;
 
-	arduino_spi_message(dev, maxBytes);
+	ssize_t len = 1;
 
-	copy_to_user(buf, dev->rx_buf, maxBytes);
+	if(*f_pos != 0)
+		return 0;
 
-	return maxBytes;
+	dev->tx_buf[0] = 0;
+
+	arduino_spi_message(dev, 1);
+
+	if(copy_to_user(buf, dev->rx_buf + *f_pos, len))
+		return -EFAULT;
+
+	*f_pos += len;
+
+	return len;
 }
 
 static int arduino_spi_write(struct file *filp, const char __user *buf, size_t maxBytes, loff_t *f_pos){
